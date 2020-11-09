@@ -1,0 +1,154 @@
+<jittershader name="fill-flat-quads">
+	<description>Default Shader </description>
+
+  //inputs
+	<param name="position" type="vec3" state="POSITION" />
+  <param name="base" type="vec3" state="NORMAL" />
+
+  //explode
+	<param name="expAmt" type="float" default="0." />
+  <param name="expCenter" type="vec3" default="0. 0. 0." />
+
+  //twist
+  <param name="twYstretch" type="float" default="1." />
+  <param name="twYslice" type="float" default="1." />
+  <param name="twXstretch" type="float" default="1." />
+  <param name="twXslice" type="float" default="1." />
+
+  //shift
+  <param name="shYshift" type="float" default="0." />
+  <param name="shYslice" type="float" default="1." />
+  <param name="shXshift" type="float" default="0." />
+  <param name="shXslice" type="float" default="1." />
+
+  //ripple
+  <param name="time" type="float" default="0." />
+  <param name="ripfreq" type="float" default="0." />
+  <param name="ripdims" type="vec3" default="0. 0. 0." />
+  <param name="ripdimfreq" type="vec3" default="1. 1. 1." />
+  <param name="ripdimspd" type="vec3" default="1. 1. 1." />
+
+
+  
+	<language name="glsl" version="1.5">
+		<bind param="position" program="vp" />
+    <bind param="base" program="vp" />
+
+		<bind param="expAmt" program="vp" />
+		<bind param="expCenter" program="vp" />
+    
+    <bind param="twYstretch" program="vp" />
+    <bind param="twYslice" program="vp" />
+    <bind param="twXstretch" program="vp" />
+    <bind param="twXslice" program="vp" />
+
+    <bind param="shYshift" program="vp" />
+    <bind param="shYslice" program="vp" />
+    <bind param="shXshift" program="vp" />
+    <bind param="shXslice" program="vp" />
+
+    <bind param="time" program="vp" />
+    <bind param="ripfreq" program="vp" />
+    <bind param="ripdims" program="vp" />
+    <bind param="ripdimfreq" program="vp" />
+    <bind param="ripdimspd" program="vp" />
+
+
+		<program name="vp" type="vertex">
+<![CDATA[
+#version 330 core
+
+uniform float expAmt;
+uniform vec3  expCenter;
+
+uniform float twYstretch;
+uniform float twYslice;
+uniform float twXstretch;
+uniform float twXslice;
+
+uniform float shYshift;
+uniform float shYslice;
+uniform float shXshift;
+uniform float shXslice;
+
+uniform float time;
+uniform float ripfreq;
+uniform vec3 ripdims;
+uniform vec3 ripdimfreq;
+uniform vec3 ripdimspd;
+
+in vec3 position;
+in vec3 base;
+
+out vec3 oPosition;
+out vec3 oBase;
+
+void main() {
+	
+  //explode
+  vec3 dist = expCenter - base;
+  vec3 normDist = normalize(dist);
+  vec3 translate = normDist * expAmt;
+  vec3 newPos = base + translate;
+
+  //twist
+  vec3 normPos = normalize(newPos);
+  float strX1 = newPos.x * twYstretch;
+  float strX2 = newPos.x * 1 / twYstretch;
+  float newX = mix(strX1, strX2, normPos.y - twYslice);
+  float strY1 = newPos.y * twXstretch;
+  float strY2 = newPos.y * 1 / twXstretch;
+  float newY = mix(strY1, strY2, normPos.x - twXslice);
+  float newZ = newPos.z;
+  newPos = vec3(newX, newY, newZ);
+
+  //shift
+  newX = newPos.x + (2 * smoothstep(shYslice-0.2, shYslice+0.2, newPos.y) - 1) * shXshift;
+  newY = newPos.y + (2 * smoothstep(shXslice-0.2, shXslice+0.2, newPos.x) - 1) * shYshift;
+  newZ = newPos.z;
+  newPos = vec3(newX, newY, newZ);
+
+  //ripple
+  vec3 ripple = vec3(0., 0., 0.);
+  vec3 timedim = vec3(time * ripdimspd.x, time * ripdimspd.y, time * ripdimspd.z);
+  ripple.x = cos(radians(newPos.x * (time + 1) * ripdimfreq.x));
+  ripple.y = cos(radians(newPos.y * (time + 1) * ripdimfreq.y));
+  ripple.z = cos(radians(newPos.z * (time + 1) * ripdimfreq.z));
+  // newX = newPos.x + rippleX;
+  
+  // newX = (ripdims.x * sin(ripdimspd.x * (newPos.y * ripfreq + time) * ripple.x)) + (10. * newPos.x);
+  // newY = (ripdims.y * sin(ripdimspd.y * (newPos.z * ripfreq + time) * ripple.y)) + (10. * newPos.y);
+  // newZ = (ripdims.z * sin(ripdimspd.z * (newPos.x * ripfreq + time) * ripple.z)) + (10. * newPos.z);
+  newX = (ripdims.x * sin(newPos.y * ripfreq + timedim.x) * ripple.x) + (10. * newPos.x);
+  newY = (ripdims.y * sin(newPos.z * ripfreq + timedim.y) * ripple.y) + (10. * newPos.y);
+  newZ = (ripdims.z * sin(newPos.x * ripfreq + timedim.z) * ripple.z) + (10. * newPos.z);
+
+
+  newPos = vec3(newX, newY, newZ);
+  
+  //shear (edge)
+  // newX = newPos.x + (2 * step(shYslice, newPos.y) - 1) * shXshift;
+  // newY = newPos.y + (2 * step(shXslice, newPos.x) - 1) * shYshift;
+  // newPos = vec3(newX, newY, newPos.z);
+
+  
+  // separate
+  // newX = newPos.x + (2 * step(shYslice, newPos.x) - 1) * shXshift;
+  // newY = newPos.y + (2 * step(shXslice, newPos.y) - 1) * shYshift;
+  // newPos = vec3(newX, newY, newPos.z);
+
+  oPosition = newPos;
+  oBase = base;
+}
+]]>
+		</program>
+		<program name="fp" type="fragment">
+<![CDATA[
+#version 330 core
+
+void main() {
+}	
+]]>
+		</program>
+	</language>
+</jittershader>
